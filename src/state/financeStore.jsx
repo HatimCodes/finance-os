@@ -5,6 +5,28 @@ import { monthKey, uid, todayISO } from "./money.js";
 
 const FinanceCtx = createContext(null);
 
+function normalizeNeedItem(n) {
+  if (!n || typeof n !== "object") return n;
+  return {
+    // new fields (per-month) — older backups won’t have them
+    paid: false,
+    paidAt: null,
+    ...n,
+    // enforce types
+    paid: Boolean(n.paid),
+    paidAt: n.paidAt ? String(n.paidAt) : null,
+  };
+}
+
+function normalizeMonthNeeds(obj) {
+  if (!obj || typeof obj !== "object") return {};
+  const out = {};
+  for (const [mk, items] of Object.entries(obj)) {
+    out[mk] = Array.isArray(items) ? items.map(normalizeNeedItem) : [];
+  }
+  return out;
+}
+
 function normalizeState(s) {
   const d = makeDefaultState();
   if (!s) return d;
@@ -14,7 +36,7 @@ function normalizeState(s) {
     ...s,
     profile: { ...d.profile, ...(s.profile || {}) },
     needsTemplate: Array.isArray(s.needsTemplate) ? s.needsTemplate : (Array.isArray(s.needs) ? s.needs : d.needsTemplate),
-    monthNeeds: (s.monthNeeds && typeof s.monthNeeds === 'object') ? s.monthNeeds : d.monthNeeds,
+    monthNeeds: normalizeMonthNeeds((s.monthNeeds && typeof s.monthNeeds === 'object') ? s.monthNeeds : d.monthNeeds),
     categories: Array.isArray(s.categories) ? s.categories : d.categories,
     buckets: Array.isArray(s.buckets) ? s.buckets : d.buckets,
     debts: Array.isArray(s.debts) ? s.debts : d.debts,
@@ -30,11 +52,19 @@ function reducer(state, action) {
     case "PROFILE_UPDATE":
       return { ...state, profile: { ...state.profile, ...action.patch }, updatedAt: now };
     case "MONTH_NEEDS_SET": {
-      return { ...state, monthNeeds: { ...state.monthNeeds, [action.monthKey]: action.items }, updatedAt: now };
+      const items = Array.isArray(action.items) ? action.items.map(normalizeNeedItem) : [];
+      return { ...state, monthNeeds: { ...state.monthNeeds, [action.monthKey]: items }, updatedAt: now };
     }
     case "MONTH_NEED_ADD": {
       const items = state.monthNeeds[action.monthKey] || [];
-      return { ...state, monthNeeds: { ...state.monthNeeds, [action.monthKey]: [...items, { id: uid("need"), ...action.item }] }, updatedAt: now };
+      return {
+        ...state,
+        monthNeeds: {
+          ...state.monthNeeds,
+          [action.monthKey]: [...items, normalizeNeedItem({ id: uid("need"), ...action.item })],
+        },
+        updatedAt: now,
+      };
     }
     case "MONTH_NEED_UPDATE": {
       const items = state.monthNeeds[action.monthKey] || [];

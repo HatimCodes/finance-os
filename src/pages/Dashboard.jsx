@@ -145,7 +145,7 @@ function QuickAdd({ monthKey }) {
 export default function Dashboard() {
   const [mk, setMk] = React.useState(monthKey(new Date().toISOString().slice(0,10)));
   const c = useComputed(mk);
-  const { state } = useFinance();
+  const { state, dispatch } = useFinance();
   const name = state.profile.name?.trim();
   const byCat = useMemo(() => groupExpensesByCategory(state.transactions, mk).slice(0, 8), [state.transactions, mk]);
   const daily = useMemo(() => dailySpendSeries(state.transactions, mk), [state.transactions, mk]);
@@ -155,6 +155,24 @@ export default function Dashboard() {
 
   const emergencyId = state.buckets.find(b=>b.name.toLowerCase().includes("emergency"))?.id;
   const emergencyTotal = emergencyId ? (c.bucketTotals[emergencyId]||0) : 0;
+
+  const monthNeeds = state.monthNeeds?.[mk] || [];
+  const needsTotalAmount = monthNeeds.reduce((s,n)=>s+Number(n.amount||0),0);
+  const paidNeeds = monthNeeds.filter(n => Boolean(n.paid));
+  const unpaidNeeds = monthNeeds.filter(n => !Boolean(n.paid));
+  const needsPaidAmount = paidNeeds.reduce((s,n)=>s+Number(n.amount||0),0);
+  const needsUnpaidAmount = unpaidNeeds.reduce((s,n)=>s+Number(n.amount||0),0);
+
+  function markNeedPaid(id) {
+    dispatch({
+      type: "MONTH_NEED_UPDATE",
+      monthKey: mk,
+      id,
+      patch: { paid: true, paidAt: new Date().toISOString() },
+    });
+  }
+
+  // (computed above) paid/unpaid breakdown + helper
 
   return (
     <div className="space-y-4">
@@ -218,6 +236,72 @@ export default function Dashboard() {
       </a>
     </div>
   </div>
+) : null}
+
+{c.needsConfigured ? (
+  <Section
+    title="Needs execution"
+    description="Track which baseline bills are paid for the selected month."
+  >
+    <div className="grid sm:grid-cols-3 gap-3">
+      <div className="card p-4">
+        <div className="text-xs text-app-muted">Paid items</div>
+        <div className="mt-1 text-xl font-semibold">
+          {paidNeeds.length} / {monthNeeds.length}
+        </div>
+        <div className="text-xs text-app-muted mt-1">Count</div>
+      </div>
+
+      <div className="card p-4">
+        <div className="text-xs text-app-muted">Paid amount</div>
+        <div className="mt-1 text-xl font-semibold">
+          {formatMoney(needsPaidAmount, c.currency)}
+          <span className="text-app-muted font-normal"> / {formatMoney(needsTotalAmount, c.currency)}</span>
+        </div>
+        <div className="text-xs text-app-muted mt-1">Execution</div>
+      </div>
+
+      <div className="card p-4">
+        <div className="text-xs text-app-muted">Remaining unpaid</div>
+        <div className="mt-1 text-xl font-semibold">{formatMoney(needsUnpaidAmount, c.currency)}</div>
+        <div className="text-xs text-app-muted mt-1">Unpaid baseline</div>
+      </div>
+    </div>
+
+    <div className="mt-3 card p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold">Unpaid needs</div>
+          <div className="text-sm text-app-muted mt-1">
+            {unpaidNeeds.length === 0 ? "All needs paid for this month ✅" : "Quickly mark baseline bills as paid."}
+          </div>
+        </div>
+        <a
+          className="btn"
+          href="/budget"
+          onClick={(e)=>{e.preventDefault(); window.history.pushState({}, "", "/budget"); window.dispatchEvent(new PopStateEvent("popstate"));}}
+        >
+          Manage
+        </a>
+      </div>
+
+      {unpaidNeeds.length ? (
+        <div className="mt-3 grid gap-2">
+          {unpaidNeeds.slice(0, 5).map((n) => (
+            <div key={n.id} className="flex items-center justify-between gap-3 rounded-xl2 border border-app-border bg-app-surface2 px-3 py-2">
+              <div className="min-w-0">
+                <div className="text-sm font-medium truncate">{n.name}</div>
+                <div className="text-xs text-app-muted">{formatMoney(Number(n.amount||0), c.currency)}</div>
+              </div>
+              <button className="btn btn-accent" onClick={()=>markNeedPaid(n.id)} title="Mark paid">
+                ✓
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  </Section>
 ) : null}
 
       {/* Zone 2: Insights */}
