@@ -1,3 +1,4 @@
-cf6edde (HEAD -> main, tag: v1.1.0, origin/main) feat(needs): add paid status and dashboard progress
+fbba6cf (HEAD -> main, origin/main, feat/needs-paid) feat(needs): add paid status and dashboard execution progress
+cf6edde (tag: v1.1.0) feat(needs): add paid status and dashboard progress
 be35784 Add gitignore
 4de71f7 Initial release: Finance OS (local-first)
